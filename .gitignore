@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+data/edition.js
+_internal/

@@ -1,0 +1,81 @@
+# Checks every hour for a new daily edition (like the app does with the .meta file).
+#   - Same date as the published site -> stops after a few seconds, nothing is deployed.
+#   - New date -> downloads the news, extracts article images once, publishes the site.
+# Also publishes on every push (code changes) and on "Run workflow" (forces a full rebuild).
+#
+# One-time setup: repo Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
+# The repository itself is never modified: data/edition.js only exists in the published site.
+
+name: Aktualizacja i publikacja strony
+
+on:
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: "7 * * * *"   # every hour at :07 (GitHub may start scheduled runs a few minutes late)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      deploy: ${{ steps.decide.outputs.deploy }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Sprawdź wydanie i pobierz nowe
+        id: edition
+        run: |
+          FORCE=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then FORCE="--force"; fi
+          python scripts/build_edition.py --published "${{ steps.pages.outputs.base_url }}/data/edition.js" $FORCE
+
+      - name: Czy publikować?
+        id: decide
+        run: |
+          if [ "${{ steps.edition.outputs.changed }}" = "true" ] || [ "${{ github.event_name }}" != "schedule" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Brak nowego wydania - strona bez zmian."
+          fi
+
+      - name: Przygotuj pliki strony
+        if: steps.decide.outputs.deploy == 'true'
+        run: |
+          # Publish only the website itself (not scripts, README, workflow).
+          mkdir -p _site
+          cp -r index.html assets data _site/
+
+      - name: Wyślij pliki strony
+        if: steps.decide.outputs.deploy == 'true'
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
