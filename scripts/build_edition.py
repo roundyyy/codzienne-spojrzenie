@@ -3,11 +3,13 @@
 Builds data/edition.js: a snapshot of the daily edition (news + article images).
 
 Works like the app's update check:
-    1. Download the small .meta files (edition date, DDMMYYYY).
-    2. Compare with the previous snapshot (the published site, or the local file).
-       Same dates -> nothing to do.
+    1. Today's edition already in the previous snapshot (the published site,
+       or the local file)? -> nothing to do until tomorrow.
+    2. Otherwise download the small .meta files (edition date, DDMMYYYY).
+       Same dates as the previous snapshot -> nothing to do.
     3. New date -> download the news JSON, extract every article's main image
-       once, and write a new snapshot.
+       once, and write a new snapshot (with the upload time, used by the
+       website's "next news in..." countdown).
 
 If a .meta date changed but its JSON content did not (the upload isn't finished
 yet), that feed keeps its old date, so the next run tries again.
@@ -316,13 +318,42 @@ def set_output(name: str, value: str) -> None:
 # --------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------
-def fetch_meta(feed: str) -> str:
+def today_ddmmyyyy() -> str:
+    """Today's date in Ireland (DDMMYYYY), the same format as the .meta files."""
     try:
-        value = http_get(SOURCES[feed]["meta"])[1].strip()
-        return value if re.fullmatch(r"\d{8}", value) else ""
+        from zoneinfo import ZoneInfo
+
+        now = dt.datetime.now(ZoneInfo("Europe/Dublin"))
+    except Exception:  # no time-zone data (e.g. plain Python on Windows)
+        now = dt.datetime.now(dt.timezone.utc)
+    return now.strftime("%d%m%Y")
+
+
+def fetch_meta(feed: str) -> tuple[str, str]:
+    """Returns (edition date DDMMYYYY, upload time ISO-UTC), or ("", "") on failure.
+
+    The upload time comes from Dropbox's ETag, which starts with a millisecond
+    timestamp - the same value the app uses for its "next news in..." countdown.
+    """
+    req = urllib.request.Request(
+        SOURCES[feed]["meta"], headers={"User-Agent": USER_AGENT, "Cache-Control": "no-cache"}
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as resp:
+            value = resp.read().decode("utf-8", "replace").strip()
+            etag = resp.headers.get("Etag", "")
     except Exception as e:
         print(f"[{feed}] could not read .meta: {e}")
-        return ""
+        return "", ""
+    if not re.fullmatch(r"\d{8}", value):
+        return "", ""
+    uploaded = ""
+    digits = re.sub(r"\D", "", etag)[:13]
+    if len(digits) == 13:
+        ts = dt.datetime.fromtimestamp(int(digits) / 1000, dt.timezone.utc)
+        if 2020 <= ts.year <= 2100:
+            uploaded = ts.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return value, uploaded
 
 
 def main() -> int:
@@ -331,25 +362,44 @@ def main() -> int:
     ap.add_argument("--force", action="store_true", help="rebuild even if the edition dates match")
     args = ap.parse_args()
 
-    metas = {feed: fetch_meta(feed) for feed in SOURCES}
     prev, prev_source = load_previous(args.published)
-    print(f"Dropbox dates: {metas}")
     print(f"Previous snapshot ({prev_source}): {prev['dates'] if prev else 'none'}")
 
-    # ---- 1. Nothing new? -------------------------------------------------
+    def keep_previous(reason: str, changed: bool = False) -> int:
+        print(reason)
+        if prev_source == "published site" or changed:
+            write_snapshot(prev)  # so a code-only deploy keeps the current edition
+        set_output("changed", "true" if changed else "false")
+        return 0
+
+    # ---- 1a. Today's edition already published? Don't even ask Dropbox. ----
+    today = today_ddmmyyyy()
+    if (
+        prev
+        and not args.force
+        and prev.get("uploaded")
+        and all(prev["dates"].get(f) == today for f in SOURCES)
+    ):
+        return keep_previous(f"Today's edition ({today}) is already published - nothing to do until tomorrow.")
+
+    metas: dict[str, str] = {}
+    uploads: dict[str, str] = {}
+    for feed in SOURCES:
+        metas[feed], uploads[feed] = fetch_meta(feed)
+    print(f"Dropbox dates: {metas}  uploaded: {uploads}")
+
+    # ---- 1b. Nothing new on Dropbox? --------------------------------------
     if prev and not args.force:
         if all(metas.values()) and all(prev["dates"].get(f) == metas[f] for f in SOURCES):
-            print("Edition is up to date - nothing to do.")
-            if prev_source == "published site":
-                write_snapshot(prev)  # so a code-only deploy keeps the current edition
-            set_output("changed", "false")
-            return 0
+            added = False
+            if not prev.get("uploaded"):
+                # Snapshot made by an older version of this script: add the
+                # upload times so the website can show its countdown.
+                prev["uploaded"] = uploads
+                added = True
+            return keep_previous("Edition is up to date - nothing to do.", changed=added)
         if not any(metas.values()):
-            print("Dropbox .meta unavailable - keeping the previous edition.")
-            if prev_source == "published site":
-                write_snapshot(prev)
-            set_output("changed", "false")
-            return 0
+            return keep_previous("Dropbox .meta unavailable - keeping the previous edition.")
 
     # ---- 2. Download news ------------------------------------------------
     # Every article URL already tried, including misses ("") - never scraped twice.
@@ -360,9 +410,19 @@ def main() -> int:
                 if it.get("source_url"):
                     old_images[it["source_url"]] = it.get("image", "")
 
+    prev_uploads = (prev or {}).get("uploaded") or {}
+
+    def kept_upload(feed: str) -> str:
+        """Upload time for a feed whose previous articles are kept."""
+        if prev_uploads.get(feed):
+            return prev_uploads[feed]
+        same_edition = prev and prev["dates"].get(feed) == metas.get(feed)
+        return uploads.get(feed, "") if same_edition else ""
+
     feeds: dict[str, list] = {}
     dates: dict[str, str] = {}
     hashes: dict[str, str] = {}
+    uploaded: dict[str, str] = {}
     for feed, src in SOURCES.items():
         try:
             _, text = http_get(src["json"], accept="application/json")
@@ -375,6 +435,7 @@ def main() -> int:
                 feeds[feed] = prev["feeds"][feed]
                 dates[feed] = prev["dates"].get(feed, "")
                 hashes[feed] = prev["hashes"].get(feed, "")
+                uploaded[feed] = kept_upload(feed)
                 continue
             print(f"[{feed}] ERROR: cannot download news JSON: {e}", file=sys.stderr)
             set_output("changed", "false")
@@ -388,6 +449,7 @@ def main() -> int:
             feeds[feed] = prev["feeds"][feed]
             dates[feed] = prev["dates"].get(feed, "")
             hashes[feed] = digest
+            uploaded[feed] = kept_upload(feed)
             continue
 
         feeds[feed] = [
@@ -405,6 +467,7 @@ def main() -> int:
         ]
         dates[feed] = metas[feed]
         hashes[feed] = digest
+        uploaded[feed] = uploads.get(feed, "")
         print(f"[{feed}] {len(feeds[feed])} articles, edition {metas[feed] or '?'}")
 
     # ---- 3. Images (once per article) -------------------------------------
@@ -437,11 +500,12 @@ def main() -> int:
         "version": FORMAT_VERSION,
         "generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "dates": dates,
+        "uploaded": uploaded,
         "hashes": hashes,
         "feeds": feeds,
     }
     changed = not prev or any(
-        prev.get(k) != snapshot[k] for k in ("dates", "hashes", "feeds")
+        prev.get(k) != snapshot[k] for k in ("dates", "uploaded", "hashes", "feeds")
     )
     if changed or prev_source != "local file":
         write_snapshot(snapshot if changed else prev)

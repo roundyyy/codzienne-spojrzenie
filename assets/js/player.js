@@ -200,7 +200,9 @@
     var saved = savedPos(track);
     if (saved && saved.t > 3 && saved.d && saved.t < saved.d - 5) {
       audio.addEventListener("loadedmetadata", function once() {
-        audio.currentTime = saved.t;
+        // Resume only the same recording: Dropbox may already have a newer MP3
+        // than the text edition (different length = different recording).
+        if (sameRecording(saved, audio.duration)) audio.currentTime = saved.t;
       }, { once: true });
     }
 
@@ -280,7 +282,13 @@
       return audio.currentTime / audio.duration;
     }
     var s = savedPos(track);
-    return s && s.d ? Math.min(1, s.t / s.d) : 0;
+    if (!s || !s.d || !sameRecording(s, state.durations[track])) return 0;
+    return Math.min(1, s.t / s.d);
+  }
+
+  /** True when a saved position belongs to the recording of this length (±2 s). */
+  function sameRecording(saved, duration) {
+    return isFinite(duration) && duration > 0 && Math.abs(saved.d - duration) <= 2;
   }
 
   function preloadDurations() {

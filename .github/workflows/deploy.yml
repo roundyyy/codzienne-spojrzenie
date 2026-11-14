@@ -1,7 +1,16 @@
-# Checks every hour for a new daily edition (like the app does with the .meta file).
-#   - Same date as the published site -> stops after a few seconds, nothing is deployed.
-#   - New date -> downloads the news, extracts article images once, publishes the site.
-# Also publishes on every push (code changes) and on "Run workflow" (forces a full rebuild).
+# Daily edition update.
+#   - Today's edition already published -> stops within seconds, nothing else happens.
+#   - Otherwise checks the Dropbox .meta date; new edition -> downloads the news,
+#     extracts article images once and publishes the site. Not ready yet -> the
+#     next hourly run tries again.
+#
+# Triggers:
+#   - schedule: 17:30 Irish time, then every hour until ~midnight. GitHub's cron
+#     uses UTC, so 16:30-23:30 UTC covers 17:30 in winter (GMT) and summer (IST).
+#     GitHub may start scheduled runs late or skip them under load.
+#   - workflow_dispatch: "Run workflow" button, or an external scheduler calling
+#     the GitHub API. Tick "force" to rebuild even if the edition looks current.
+#   - push: publishes code changes (keeps the current edition).
 #
 # One-time setup: repo Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
 # The repository itself is never modified: data/edition.js only exists in the published site.
@@ -12,8 +21,13 @@ on:
   push:
     branches: [main, master]
   schedule:
-    - cron: "7 * * * *"   # every hour at :07 (GitHub may start scheduled runs a few minutes late)
+    - cron: "30 16-23 * * *"
   workflow_dispatch:
+    inputs:
+      force:
+        description: "Pobierz wydanie od nowa, nawet jeśli wygląda na aktualne"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -30,26 +44,24 @@ jobs:
     outputs:
       deploy: ${{ steps.decide.outputs.deploy }}
     steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
+      - uses: actions/checkout@v7
 
       - id: pages
-        uses: actions/configure-pages@v5
+        uses: actions/configure-pages@v6
 
       - name: Sprawdź wydanie i pobierz nowe
         id: edition
         run: |
           FORCE=""
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then FORCE="--force"; fi
-          python scripts/build_edition.py --published "${{ steps.pages.outputs.base_url }}/data/edition.js" $FORCE
+          if [ "${{ inputs.force }}" = "true" ]; then FORCE="--force"; fi
+          python3 scripts/build_edition.py --published "${{ steps.pages.outputs.base_url }}/data/edition.js" $FORCE
 
       - name: Czy publikować?
         id: decide
         run: |
-          if [ "${{ steps.edition.outputs.changed }}" = "true" ] || [ "${{ github.event_name }}" != "schedule" ]; then
+          if [ "${{ steps.edition.outputs.changed }}" = "true" ] \
+             || [ "${{ github.event_name }}" = "push" ] \
+             || [ "${{ inputs.force }}" = "true" ]; then
             echo "deploy=true" >> "$GITHUB_OUTPUT"
           else
             echo "deploy=false" >> "$GITHUB_OUTPUT"
@@ -65,7 +77,7 @@ jobs:
 
       - name: Wyślij pliki strony
         if: steps.decide.outputs.deploy == 'true'
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: _site
 
@@ -78,4 +90,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

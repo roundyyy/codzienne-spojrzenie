@@ -55,6 +55,7 @@
     <symbol id="i-chip" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></symbol>
     <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6.2L4.6 18.4A1.8 1.8 0 0 0 6.1 21h11.8a1.8 1.8 0 0 0 1.5-2.6L14 9.2V3"/><path d="M7.2 15h9.6"/></symbol>
     <symbol id="i-expand" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3.2 2"/></symbol>
   </svg>
 
   <a class="skip-link" href="#news">Przejdź do wiadomości</a>
@@ -91,6 +92,11 @@
           <p class="eyebrow eyebrow--inverse"><svg class="icon"><use href="#i-headphones"/></svg> Wydanie audio</p>
           <h2 class="listen__title" id="listen-title">Posłuchaj wiadomości dnia</h2>
           <p class="listen__edition" id="edition-line">Ładowanie wydania…</p>
+          <p class="listen__next" id="next-edition" aria-live="polite" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>
+            <span id="next-edition-text"></span>
+            <button class="listen__reload" id="next-edition-reload" type="button" hidden>Odśwież</button>
+          </p>
         </div>
 
         <ul class="tracks" id="tracks">

@@ -171,14 +171,19 @@
       var general = normalizeFeed(ed.feeds.general);
       var tech = normalizeFeed(ed.feeds.tech);
       state.generated = ed.generated || "";
+      state.uploaded = ed.uploaded || {};
       applyEdition(general, tech, ed.dates || {}, false);
       hideNotice();
-      lsSet(EDITION_CACHE_KEY, { generated: state.generated, dates: ed.dates || {}, general: general, tech: tech });
+      lsSet(EDITION_CACHE_KEY, {
+        generated: state.generated, dates: ed.dates || {}, uploaded: state.uploaded,
+        general: general, tech: tech
+      });
     }).catch(function (err) {
       console.error(err);
       var cached = lsGet(EDITION_CACHE_KEY, null);
       if (cached && cached.general) {
         state.generated = cached.generated || "";
+        state.uploaded = cached.uploaded || {};
         applyEdition(cached.general, cached.tech, cached.dates || {}, true);
         showNotice("Brak połączenia — wyświetlamy ostatnio zapisane wydanie.", true);
       } else {
@@ -205,7 +210,7 @@
 
   /** Called periodically: offers a reload when a newer snapshot has been published. */
   function checkForUpdate() {
-    if (!state.loaded || document.hidden || location.protocol === "file:") return;
+    if (!state.loaded || state.newAvailable || document.hidden || location.protocol === "file:") return;
     state.lastCheck = Date.now();
     fetch(EDITION_FILE + "?t=" + Date.now(), { cache: "no-store" })
       .then(function (r) {
@@ -214,11 +219,62 @@
       })
       .then(function (text) {
         var m = /"generated":\s*"([^"]+)"/.exec(text);
-        if (m && state.generated && m[1] !== state.generated) {
+        if (m && state.generated && m[1] !== state.generated && !state.newAvailable) {
+          state.newAvailable = true;
+          renderCountdown();
           toast("Dostępne jest nowe wydanie.", { label: "Odśwież", fn: function () { location.reload(); } });
         }
       })
       .catch(function () { /* offline: try later */ });
+  }
+
+  // =========================================================================
+  // "Następne wiadomości za około…" — same rule as the app:
+  // time the edition was uploaded to Dropbox + 24 hours.
+  // =========================================================================
+  function nextEditionTime() {
+    var u = state.uploaded || {};
+    var t = Date.parse(u.general || u.tech || "");
+    return isFinite(t) ? t + 24 * 3600000 : null;
+  }
+
+  function isNewEditionDue() {
+    var next = nextEditionTime();
+    return !!next && Date.now() >= next;
+  }
+
+  /** Check often once a new edition is due, rarely otherwise. */
+  function updateCheckDelay() {
+    return (isNewEditionDue() ? cfg.dueCheckMinutes : cfg.updateCheckMinutes) * 60000;
+  }
+
+  function renderCountdown() {
+    var el = $("next-edition");
+    var next = nextEditionTime();
+    if (!state.loaded || state.failed || !next) { el.hidden = true; return; }
+
+    var mode, text;
+    if (state.newAvailable) {
+      mode = "ready";
+      text = "Nowe wiadomości są już dostępne!";
+    } else if (Date.now() < next) {
+      var diff = next - Date.now();
+      mode = "wait";
+      text = "Następne wiadomości za około: " + Math.floor(diff / 3600000) + "g " +
+        Math.floor((diff % 3600000) / 60000) + "m";
+    } else {
+      mode = "due";
+      text = "Nowe wiadomości są w drodze — pojawią się wkrótce";
+    }
+    el.dataset.mode = mode;
+    $("next-edition-text").textContent = text;
+    $("next-edition-reload").hidden = mode !== "ready";
+    el.hidden = false;
+  }
+
+  function tick() {
+    renderCountdown();
+    if (!state.newAvailable && Date.now() - (state.lastCheck || 0) >= updateCheckDelay()) checkForUpdate();
   }
 
   // =========================================================================
@@ -235,6 +291,7 @@
       $("fact").hidden = false;
     }
 
+    renderCountdown();
     var line = $("edition-line");
     if (!state.loaded) return;
     if (state.failed) { line.textContent = "Wydanie chwilowo niedostępne"; return; }
@@ -653,10 +710,12 @@
     $("text-bigger").addEventListener("click", function () { setScale(1); });
     $("theme-toggle").addEventListener("click", toggleTheme);
 
+    $("next-edition-reload").addEventListener("click", function () { location.reload(); });
+
     document.addEventListener("visibilitychange", function () {
-      if (!document.hidden && Date.now() - (state.lastCheck || 0) > cfg.updateCheckMinutes * 60000) checkForUpdate();
+      if (!document.hidden) tick();
     });
-    setInterval(checkForUpdate, cfg.updateCheckMinutes * 60000);
+    setInterval(tick, 30000);
   }
 
   // =========================================================================

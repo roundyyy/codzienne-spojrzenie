@@ -33,8 +33,10 @@ window.CC_CONFIG = {
   skipSeconds: 15,
   speeds: [1, 1.25, 1.5, 1.75, 2, 0.75],
 
-  /* While the page stays open, check for a newly published edition (minutes). */
+  /* While the page stays open, check for a newly published edition (minutes):
+     normally every 20 min, every 2 min once the next edition is due. */
   updateCheckMinutes: 20,
+  dueCheckMinutes: 2,
 
   playStoreUrl: "https://play.google.com/store/apps/details?id=com.roundystudio.dailyworldpodcast"
 };
