@@ -1,5 +1,5 @@
 /* =========================================================================
-   Codzienne Spojrzenie — styles
+   Codzienne Ciekawostki — styles
    ========================================================================= */
 
 /* ---------- Tokens ---------- */
@@ -250,27 +250,26 @@ h1, h2, h3 { margin: 0; }
   :root:not([data-theme="light"]) .icon--theme-dark { display: inline; }
 }
 
+/* Banner: always the image's own 2172:563 shape, scaled to the available width. */
 .brand {
-  text-align: center;
-  padding-block: clamp(14px, 3vw, 30px) clamp(18px, 3vw, 28px);
+  padding-block: clamp(12px, 2.5vw, 24px);
   border-top: 1px solid var(--rule-strong);
   border-bottom: 3px double var(--rule-strong);
 }
-.brand__name {
-  display: inline-block;
-  font-family: var(--font-serif);
-  font-weight: 700;
-  font-size: clamp(2.3rem, 7.2vw, 4.6rem);
-  line-height: 1.02;
-  letter-spacing: -0.025em;
-  text-decoration: none;
-  font-optical-sizing: auto;
+.brand__title { margin: 0; line-height: 0; }
+.brand__link {
+  display: block;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  /* Shown only while the image loads: the banner's own light-to-dark colours. */
+  background: linear-gradient(90deg, #f3eee7 0 45%, #1c1c1f 72%);
 }
-.brand__name span { font-style: italic; font-weight: 500; }
-.brand__tagline {
-  margin-top: 10px;
-  color: var(--muted);
-  font-size: clamp(0.9rem, 2vw, 1rem);
+.brand__banner {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 2172 / 563;
 }
 
 /* ---------- Hero: audio + side ---------- */
@@ -1018,6 +1017,7 @@ dialog::backdrop { background: rgba(10, 10, 12, 0.6); -webkit-backdrop-filter: b
 }
 
 @media (max-width: 520px) {
+  .brand__link { border-radius: var(--radius); }
   .topbar__date { font-size: 0.8rem; }
   .tool-btn { min-width: 34px; height: 34px; padding: 0 8px; }
   /* All four tabs visible at once, equal width - like the app's TabRow. */

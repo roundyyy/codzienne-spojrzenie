@@ -1,3 +1,3 @@
-# Codzienne Spojrzenie
+# Codzienne Ciekawostki
 
 Just some experiments.

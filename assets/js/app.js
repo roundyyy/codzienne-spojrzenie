@@ -1,5 +1,5 @@
 /*
- * Codzienne Spojrzenie - main application.
+ * Codzienne Ciekawostki - main application.
  * Loads the daily edition snapshot (data/edition.js: news + article images,
  * built by scripts/build_edition.py), renders the four "Gazeta" categories
  * and wires the audio player.
@@ -80,9 +80,6 @@
   var longDate = new Intl.DateTimeFormat("pl-PL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   var shortDate = new Intl.DateTimeFormat("pl-PL", { day: "numeric", month: "long" });
 
-  function sameDay(a, b) {
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
-  }
 
   function todayKey() {
     var d = new Date();
@@ -298,9 +295,8 @@
 
     var date = parseEditionDate(state.dates.general || state.dates.tech);
     if (date) {
-      var yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
-      var label = sameDay(date, now) ? "dzisiejsze wydanie"
-        : sameDay(date, yesterday) ? "wczorajsze wydanie" : "najnowsze dostępne wydanie";
+      // Not "dzisiejsze/wczorajsze": that would depend on each visitor's time zone.
+      var label = "najnowsze wydanie";
       line.innerHTML = "<strong>" + esc(capitalize(longDate.format(date))) + "</strong> · " + label;
       $("footer-updated").textContent = "Wydanie z " + shortDate.format(date) + " " + date.getFullYear();
     } else {

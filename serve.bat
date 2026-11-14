@@ -1,5 +1,5 @@
 @echo off
-REM Codzienne Spojrzenie - local preview.
+REM Codzienne Ciekawostki - local preview.
 REM Downloads the current edition (news + images) into data\edition.js,
 REM then serves the site at http://localhost:8000
 cd /d "%~dp0"

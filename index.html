@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Codzienne Spojrzenie — wiadomości dnia do czytania i słuchania</title>
+  <title>Codzienne Ciekawostki — wiadomości dnia do czytania i słuchania</title>
   <meta name="description" content="Codzienny przegląd najważniejszych wiadomości ze świata: geopolityka, biznes, technologia i nauka. Czytaj streszczenia lub posłuchaj audio-wydania.">
   <meta name="theme-color" content="#f7f5f0" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#111214" media="(prefers-color-scheme: dark)">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="pl_PL">
-  <meta property="og:title" content="Codzienne Spojrzenie">
+  <meta property="og:title" content="Codzienne Ciekawostki">
   <meta property="og:description" content="Najważniejsze wiadomości dnia — do czytania i do słuchania.">
   <link rel="icon" href="assets/img/favicon.svg" type="image/svg+xml">
 
@@ -77,10 +77,18 @@
     </div>
 
     <div class="container brand">
-      <a class="brand__name" href="./" aria-label="Codzienne Spojrzenie — strona główna">
-        Codzienne <span>Spojrzenie</span>
-      </a>
-      <p class="brand__tagline">Najważniejsze wiadomości dnia — do czytania i do słuchania</p>
+      <h1 class="brand__title">
+        <a class="brand__link" href="./">
+          <picture>
+            <source type="image/webp"
+                    srcset="assets/img/banner-800.webp 800w, assets/img/banner-1400.webp 1400w, assets/img/banner-2172.webp 2172w"
+                    sizes="(min-width: 1200px) 1136px, calc(100vw - 32px)">
+            <img class="brand__banner" src="assets/img/banner.jpg" width="2172" height="563"
+                 alt="Codzienne Ciekawostki — geopolityka, nauka, technologia, biznes, natura"
+                 fetchpriority="high" decoding="async">
+          </picture>
+        </a>
+      </h1>
     </div>
   </header>
 
@@ -169,7 +177,7 @@
   <footer class="footer">
     <div class="container footer__inner">
       <div>
-        <p class="footer__brand">Codzienne <span>Spojrzenie</span></p>
+        <p class="footer__brand">Codzienne <span>Ciekawostki</span></p>
         <p class="footer__text">Codzienny przegląd najciekawszych wiadomości ze świata, przygotowany w języku polskim. Streszczenia mają charakter informacyjny — pełne artykuły znajdziesz u wydawców pod linkiem „Czytaj źródło”. Zdjęcia i treści źródłowe należą do ich właścicieli.</p>
       </div>
       <div class="footer__app">

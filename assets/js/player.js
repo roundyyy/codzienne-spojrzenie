@@ -1,5 +1,5 @@
 /*
- * Codzienne Spojrzenie - audio player.
+ * Codzienne Ciekawostki - audio player.
  * Mirrors the app player: -15 s, play/pause, +15 s, stop, seek bar.
  * Extras: per-edition resume position, playback speed, "play whole edition"
  * (general -> tech) and lock-screen controls (Media Session).
