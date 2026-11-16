@@ -22,6 +22,8 @@ Usage:
     python scripts/build_edition.py                    # compare with local data/edition.js
     python scripts/build_edition.py --published URL    # compare with the live site (GitHub Actions)
     python scripts/build_edition.py --force            # rebuild even if the dates match
+    python scripts/build_edition.py --wait 10          # keep checking every minute, up to 10 min,
+                                                       # until today's edition (general + tech) is complete
 """
 
 from __future__ import annotations
@@ -356,67 +358,27 @@ def fetch_meta(feed: str) -> tuple[str, str]:
     return value, uploaded
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--published", metavar="URL", help="URL of the live data/edition.js to compare with")
-    ap.add_argument("--force", action="store_true", help="rebuild even if the edition dates match")
-    args = ap.parse_args()
+class FeedError(Exception):
+    """A news JSON could not be downloaded and there is nothing to fall back on."""
 
-    prev, prev_source = load_previous(args.published)
-    print(f"Previous snapshot ({prev_source}): {prev['dates'] if prev else 'none'}")
 
-    def keep_previous(reason: str, changed: bool = False) -> int:
-        print(reason)
-        if prev_source == "published site" or changed:
-            write_snapshot(prev)  # so a code-only deploy keeps the current edition
-        set_output("changed", "true" if changed else "false")
-        return 0
-
-    # ---- 1a. Today's edition already published? Don't even ask Dropbox. ----
-    today = today_ddmmyyyy()
-    if (
-        prev
-        and not args.force
-        and prev.get("uploaded")
-        and all(prev["dates"].get(f) == today for f in SOURCES)
-    ):
-        return keep_previous(f"Today's edition ({today}) is already published - nothing to do until tomorrow.")
-
-    metas: dict[str, str] = {}
-    uploads: dict[str, str] = {}
-    for feed in SOURCES:
-        metas[feed], uploads[feed] = fetch_meta(feed)
-    print(f"Dropbox dates: {metas}  uploaded: {uploads}")
-
-    # ---- 1b. Nothing new on Dropbox? --------------------------------------
-    if prev and not args.force:
-        if all(metas.values()) and all(prev["dates"].get(f) == metas[f] for f in SOURCES):
-            added = False
-            if not prev.get("uploaded"):
-                # Snapshot made by an older version of this script: add the
-                # upload times so the website can show its countdown.
-                prev["uploaded"] = uploads
-                added = True
-            return keep_previous("Edition is up to date - nothing to do.", changed=added)
-        if not any(metas.values()):
-            return keep_previous("Dropbox .meta unavailable - keeping the previous edition.")
-
-    # ---- 2. Download news ------------------------------------------------
+def build_snapshot(base: dict | None, metas: dict, uploads: dict, force: bool) -> dict:
+    """Downloads the news JSON and returns a snapshot, reusing `base` where nothing changed."""
     # Every article URL already tried, including misses ("") - never scraped twice.
     old_images: dict[str, str] = {}
-    if prev:
-        for items in prev["feeds"].values():
+    if base:
+        for items in base["feeds"].values():
             for it in items:
                 if it.get("source_url"):
                     old_images[it["source_url"]] = it.get("image", "")
 
-    prev_uploads = (prev or {}).get("uploaded") or {}
+    base_uploads = (base or {}).get("uploaded") or {}
 
     def kept_upload(feed: str) -> str:
         """Upload time for a feed whose previous articles are kept."""
-        if prev_uploads.get(feed):
-            return prev_uploads[feed]
-        same_edition = prev and prev["dates"].get(feed) == metas.get(feed)
+        if base_uploads.get(feed):
+            return base_uploads[feed]
+        same_edition = base and base["dates"].get(feed) == metas.get(feed)
         return uploads.get(feed, "") if same_edition else ""
 
     feeds: dict[str, list] = {}
@@ -430,24 +392,22 @@ def main() -> int:
             if not isinstance(items, list):
                 raise ValueError("JSON is not a list")
         except Exception as e:
-            if prev and feed in prev["feeds"]:
+            if base and feed in base["feeds"]:
                 print(f"[{feed}] download failed ({e}) - keeping previous articles.")
-                feeds[feed] = prev["feeds"][feed]
-                dates[feed] = prev["dates"].get(feed, "")
-                hashes[feed] = prev["hashes"].get(feed, "")
+                feeds[feed] = base["feeds"][feed]
+                dates[feed] = base["dates"].get(feed, "")
+                hashes[feed] = base["hashes"].get(feed, "")
                 uploaded[feed] = kept_upload(feed)
                 continue
-            print(f"[{feed}] ERROR: cannot download news JSON: {e}", file=sys.stderr)
-            set_output("changed", "false")
-            return 1
+            raise FeedError(f"[{feed}] cannot download news JSON: {e}")
 
         digest = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        if prev and not args.force and prev["hashes"].get(feed) == digest:
+        if base and not force and base["hashes"].get(feed) == digest:
             # The date moved but the content didn't: upload probably not finished.
-            # Keep the old date so the next run checks again.
-            print(f"[{feed}] content unchanged - keeping date {prev['dates'].get(feed)}")
-            feeds[feed] = prev["feeds"][feed]
-            dates[feed] = prev["dates"].get(feed, "")
+            # Keep the old date so the next check tries again.
+            print(f"[{feed}] content unchanged - keeping date {base['dates'].get(feed)}")
+            feeds[feed] = base["feeds"][feed]
+            dates[feed] = base["dates"].get(feed, "")
             hashes[feed] = digest
             uploaded[feed] = kept_upload(feed)
             continue
@@ -470,7 +430,7 @@ def main() -> int:
         uploaded[feed] = uploads.get(feed, "")
         print(f"[{feed}] {len(feeds[feed])} articles, edition {metas[feed] or '?'}")
 
-    # ---- 3. Images (once per article) -------------------------------------
+    # Images (once per article)
     todo = []
     for items in feeds.values():
         for it in items:
@@ -495,8 +455,7 @@ def main() -> int:
     with_img = sum(1 for v in feeds.values() for it in v if it.get("image"))
     print(f"Images: {with_img}/{total}")
 
-    # ---- 4. Save ---------------------------------------------------------
-    snapshot = {
+    return {
         "version": FORMAT_VERSION,
         "generated": dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "dates": dates,
@@ -504,11 +463,82 @@ def main() -> int:
         "hashes": hashes,
         "feeds": feeds,
     }
-    changed = not prev or any(
-        prev.get(k) != snapshot[k] for k in ("dates", "uploaded", "hashes", "feeds")
+
+
+def same_content(a: dict | None, b: dict | None) -> bool:
+    keys = ("dates", "uploaded", "hashes", "feeds")
+    return bool(a) and bool(b) and all(a.get(k) == b.get(k) for k in keys)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--published", metavar="URL", help="URL of the live data/edition.js to compare with")
+    ap.add_argument("--force", action="store_true", help="rebuild even if the edition dates match")
+    ap.add_argument(
+        "--wait", type=int, default=0, metavar="MINUTES",
+        help="keep checking Dropbox every minute, up to MINUTES, until today's edition is complete",
     )
-    if changed or prev_source != "local file":
-        write_snapshot(snapshot if changed else prev)
+    args = ap.parse_args()
+
+    prev, prev_source = load_previous(args.published)
+    print(f"Previous snapshot ({prev_source}): {prev['dates'] if prev else 'none'}")
+    today = today_ddmmyyyy()
+
+    def is_today(snap: dict | None) -> bool:
+        """True when every feed (general and tech) holds today's edition."""
+        return bool(snap) and all(snap["dates"].get(f) == today for f in SOURCES)
+
+    # ---- 1. Today's edition already published? Don't even ask Dropbox. ----
+    if prev and not args.force and prev.get("uploaded") and is_today(prev):
+        print(f"Today's edition ({today}) is already published - nothing to do until tomorrow.")
+        if prev_source == "published site":
+            write_snapshot(prev)  # so a code-only deploy keeps the current edition
+        set_output("changed", "false")
+        return 0
+
+    # ---- 2. Check Dropbox (repeatedly with --wait) -------------------------
+    deadline = time.monotonic() + args.wait * 60
+    current = prev
+    force = args.force
+    check = 0
+    while True:
+        check += 1
+        metas: dict[str, str] = {}
+        uploads: dict[str, str] = {}
+        for feed in SOURCES:
+            metas[feed], uploads[feed] = fetch_meta(feed)
+        print(f"[check {check}] Dropbox dates: {metas}  uploaded: {uploads}")
+
+        if not any(metas.values()):
+            print("Dropbox .meta unavailable.")
+        elif current and not force and all(current["dates"].get(f) == metas[f] for f in SOURCES):
+            print("Nothing new on Dropbox.")
+            if not current.get("uploaded"):
+                # Snapshot made by an older version of this script: add the
+                # upload times so the website can show its countdown.
+                current = {**current, "uploaded": uploads}
+        else:
+            try:
+                current = build_snapshot(current, metas, uploads, force)
+                force = False
+            except FeedError as e:
+                print(e, file=sys.stderr)
+
+        if is_today(current) or time.monotonic() + 60 > deadline:
+            break
+        print("Today's edition is not complete yet - checking again in 1 minute...")
+        time.sleep(60)
+
+    # ---- 3. Save ---------------------------------------------------------
+    if not current:
+        print("ERROR: no edition available to publish.", file=sys.stderr)
+        set_output("changed", "false")
+        return 1
+    changed = not same_content(prev, current)
+    if changed:
+        write_snapshot(current)
+    elif prev_source == "published site":
+        write_snapshot(prev)  # unchanged: keep the exact published file
     print("New edition saved to data/edition.js" if changed else "No changes.")
     set_output("changed", "true" if changed else "false")
     return 0

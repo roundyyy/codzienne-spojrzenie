@@ -8,8 +8,10 @@
 #   - schedule: 17:30 Irish time, then every hour until ~midnight. GitHub's cron
 #     uses UTC, so 16:30-23:30 UTC covers 17:30 in winter (GMT) and summer (IST).
 #     GitHub may start scheduled runs late or skip them under load.
-#   - workflow_dispatch: "Run workflow" button, or an external scheduler calling
-#     the GitHub API. Tick "force" to rebuild even if the edition looks current.
+#   - workflow_dispatch: "Run workflow" button, or your news pipeline / an external
+#     scheduler calling the GitHub API. Keeps checking Dropbox every minute for up
+#     to 10 minutes until today's edition (general + tech) is complete.
+#     Tick "force" to rebuild at once even if the edition looks current.
 #   - push: publishes code changes (keeps the current edition).
 #
 # One-time setup: repo Settings -> Pages -> Build and deployment -> Source: "GitHub Actions".
@@ -41,6 +43,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       deploy: ${{ steps.decide.outputs.deploy }}
     steps:
@@ -52,9 +55,13 @@ jobs:
       - name: Sprawdź wydanie i pobierz nowe
         id: edition
         run: |
-          FORCE=""
-          if [ "${{ inputs.force }}" = "true" ]; then FORCE="--force"; fi
-          python3 scripts/build_edition.py --published "${{ steps.pages.outputs.base_url }}/data/edition.js" $FORCE
+          FLAGS=""
+          if [ "${{ inputs.force }}" = "true" ]; then
+            FLAGS="--force"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            FLAGS="--wait 10"   # triggered right after an upload: give Dropbox time to settle
+          fi
+          python3 scripts/build_edition.py --published "${{ steps.pages.outputs.base_url }}/data/edition.js" $FLAGS
 
       - name: Czy publikować?
         id: decide
