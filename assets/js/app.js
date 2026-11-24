@@ -369,16 +369,33 @@
     return '<div class="news__grid" style="margin-top:0">' + card + card + card + "</div>";
   }
 
+  /**
+   * "score" holds the AI importance rating (1-10) when the pipeline rated the
+   * category; otherwise it's Reddit votes (always 15 or more). Stories are already
+   * sorted most-important-first, so only the first story of a category can get the
+   * badge - even if the data ever contained several 10s.
+   */
+  function isImportanceRated(item) {
+    return Number.isInteger(item.score) && item.score >= 1 && item.score <= 10;
+  }
+
+  var AI_CHIP = '<span class="ai-chip" title="Streszczenie i tłumaczenie przygotowane przez AI">' +
+    '<svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg>Streszczenie AI</span>';
+
   function storyHTML(item, i, cat, isLead) {
     var host = item.url ? hostOf(item.url) : "";
     var num = String(i + 1).padStart(2, "0");
     var opinions = hasOpinions(item);
+    var badge = isLead && isImportanceRated(item);
 
     var kicker = '<p class="story__kicker">' +
-      (isLead ? '<span class="badge">Najważniejsze</span>' : '<span class="story__num">' + num + "</span>") +
+      (badge
+        ? '<span class="badge" title="Najważniejsza wiadomość w tej kategorii według oceny AI">Najważniejsze</span>'
+        : '<span class="story__num">' + num + "</span>") +
       (host ? '<span class="source"><img class="source__icon" src="https://www.google.com/s2/favicons?domain=' +
         encodeURIComponent(host) + '&sz=32" alt="" width="16" height="16" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' +
         '<span class="source__name">' + esc(host) + "</span></span>" : "") +
+      AI_CHIP +
       "</p>";
 
     var title = item.url
@@ -509,8 +526,10 @@
   // =========================================================================
   // Article actions (copy / share / opinions / zoom)
   // =========================================================================
+  var AI_TEXT_NOTE = "(Streszczenie przygotowane przez AI)";
+
   function articleText(item) {
-    return item.title + "\n\n" + item.summary + (item.url ? "\n\nŹródło: " + item.url : "");
+    return item.title + "\n\n" + item.summary + "\n\n" + AI_TEXT_NOTE + (item.url ? "\nŹródło: " + item.url : "");
   }
 
   function copyText(text) {
@@ -543,7 +562,7 @@
 
   function shareArticle(item) {
     if (navigator.share) {
-      navigator.share({ title: item.title, text: item.title + "\n\n" + item.summary, url: item.url || undefined })
+      navigator.share({ title: item.title, text: item.title + "\n\n" + item.summary + "\n\n" + AI_TEXT_NOTE, url: item.url || undefined })
         .catch(function (e) { if (e && e.name !== "AbortError") copyArticle(item); });
     } else {
       copyText(articleText(item))

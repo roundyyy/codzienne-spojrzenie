@@ -113,6 +113,7 @@
       el.label.textContent = state.mode === "all"
         ? "Całe wydanie · " + (ORDER.indexOf(state.track) + 1) + "/" + ORDER.length
         : "Teraz odtwarzane";
+      el.label.textContent += " · głos AI";
     }
     renderTime();
   }
@@ -134,7 +135,7 @@
     try {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: cfg.feeds[state.track].title,
-        artist: cfg.siteName,
+        artist: cfg.siteName + " · głos AI",
         album: state.editionLabel || "Wydanie dnia",
         artwork: [{ src: new URL("assets/img/favicon.svg", location.href).href, sizes: "any", type: "image/svg+xml" }]
       });

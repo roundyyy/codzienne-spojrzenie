@@ -56,6 +56,7 @@
     <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3h6M10 3v6.2L4.6 18.4A1.8 1.8 0 0 0 6.1 21h11.8a1.8 1.8 0 0 0 1.5-2.6L14 9.2V3"/><path d="M7.2 15h9.6"/></symbol>
     <symbol id="i-expand" viewBox="0 0 24 24"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5"/><path d="M12 7v5l3.2 2"/></symbol>
+    <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M11 3.5l1.9 5 5 1.9-5 1.9-1.9 5-1.9-5-5-1.9 5-1.9z"/><path d="M18.5 14.5l.9 2.3 2.3.9-2.3.9-.9 2.3-.9-2.3-2.3-.9 2.3-.9z"/></symbol>
   </svg>
 
   <a class="skip-link" href="#news">Przejdź do wiadomości</a>
@@ -100,6 +101,7 @@
           <p class="eyebrow eyebrow--inverse"><svg class="icon"><use href="#i-headphones"/></svg> Wydanie audio</p>
           <h2 class="listen__title" id="listen-title">Posłuchaj wiadomości dnia</h2>
           <p class="listen__edition" id="edition-line">Ładowanie wydania…</p>
+          <p class="listen__ai"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg>Tekst audycji i głos lektora są generowane przez AI</p>
           <p class="listen__next" id="next-edition" aria-live="polite" hidden>
             <svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg>
             <span id="next-edition-text"></span>
@@ -168,6 +170,10 @@
         </div>
         <p class="news__count" id="news-count"></p>
       </header>
+      <p class="ai-note">
+        <svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg>
+        <span>Streszczenia i tłumaczenia artykułów, kolejność wiadomości oraz podsumowania opinii przygotowuje automatycznie sztuczna inteligencja (AI) na podstawie publikacji źródłowych, bez redakcji człowieka. Mogą zawierać błędy — ważne informacje sprawdzaj w źródle. <a href="#ai">Więcej o treściach AI</a></span>
+      </p>
       <div id="notice" class="notice" hidden></div>
       <div class="news__list" id="news-list" aria-busy="true"></div>
     </section>
@@ -179,6 +185,17 @@
       <div>
         <p class="footer__brand">Codzienne <span>Ciekawostki</span></p>
         <p class="footer__text">Codzienny przegląd najciekawszych wiadomości ze świata, przygotowany w języku polskim. Streszczenia mają charakter informacyjny — pełne artykuły znajdziesz u wydawców pod linkiem „Czytaj źródło”. Zdjęcia i treści źródłowe należą do ich właścicieli.</p>
+        <section class="footer__ai" id="ai" aria-labelledby="ai-title">
+          <p class="footer__label" id="ai-title"><svg class="icon" aria-hidden="true"><use href="#i-sparkles"/></svg> Treści generowane przez AI</p>
+          <ul>
+            <li>Streszczenia, tytuły i tłumaczenia artykułów przygotowuje sztuczna inteligencja na podstawie publikacji źródłowych.</li>
+            <li>Audycje audio: tekst audycji i głos lektora są generowane przez AI — to syntetyczny głos, nie nagranie prawdziwej osoby.</li>
+            <li>Kolejność wiadomości i oznaczenie „Najważniejsze” ustala AI na podstawie oceny wagi wydarzeń.</li>
+            <li>Podsumowania opinii społeczności powstają przy użyciu AI na podstawie dyskusji na Reddicie.</li>
+            <li>Zdjęcia pochodzą ze stron źródłowych i nie są generowane przez AI.</li>
+          </ul>
+          <p>Treści nie są sprawdzane ani redagowane przez człowieka i mogą zawierać błędy. Ważne informacje zawsze weryfikuj w pełnym artykule u wydawcy.</p>
+        </section>
       </div>
       <div class="footer__app">
         <p class="footer__label">Słuchaj w aplikacji</p>
@@ -197,7 +214,7 @@
       <div class="player__info">
         <span class="player__art" aria-hidden="true"><svg class="icon"><use href="#i-headphones"/></svg></span>
         <div class="player__text">
-          <p class="player__label" id="player-label">Teraz odtwarzane</p>
+          <p class="player__label" id="player-label">Teraz odtwarzane · głos AI</p>
           <p class="player__title" id="player-title">—</p>
         </div>
       </div>
@@ -229,7 +246,7 @@
   <dialog class="modal" id="opinions-dialog" aria-labelledby="opinions-title">
     <div class="modal__head">
       <div>
-        <p class="eyebrow">Opinie społeczności</p>
+        <p class="eyebrow">Opinie społeczności · podsumowanie AI</p>
         <h3 class="modal__title" id="opinions-title"></h3>
       </div>
       <button class="tool-btn" type="button" data-close aria-label="Zamknij"><svg class="icon"><use href="#i-close"/></svg></button>
