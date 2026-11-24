@@ -388,30 +388,37 @@
     var opinions = hasOpinions(item);
     var badge = isLead && isImportanceRated(item);
 
+    // "Źródło: techspot.com" links to the article, same as the headline.
+    var source = host
+      ? '<a class="source" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer" title="Otwórz artykuł źródłowy">' +
+        '<span class="source__label">Źródło:</span>' +
+        '<img class="source__icon" src="https://www.google.com/s2/favicons?domain=' + encodeURIComponent(host) +
+        '&sz=32" alt="" width="16" height="16" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' +
+        '<span class="source__name">' + esc(host) + "</span></a>"
+      : "";
+
     var kicker = '<p class="story__kicker">' +
       (badge
         ? '<span class="badge" title="Najważniejsza wiadomość w tej kategorii według oceny AI">Najważniejsze</span>'
         : '<span class="story__num">' + num + "</span>") +
-      (host ? '<span class="source"><img class="source__icon" src="https://www.google.com/s2/favicons?domain=' +
-        encodeURIComponent(host) + '&sz=32" alt="" width="16" height="16" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">' +
-        '<span class="source__name">' + esc(host) + "</span></span>" : "") +
-      AI_CHIP +
+      source + AI_CHIP +
       "</p>";
 
     var title = item.url
       ? '<a href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">' + esc(item.title) + "</a>"
       : esc(item.title);
 
-    var actions = '<div class="story__actions">' +
-      (item.url
-        ? '<a class="read-link" href="' + esc(item.url) + '" target="_blank" rel="noopener noreferrer">Czytaj źródło<svg class="icon" aria-hidden="true"><use href="#i-external"/></svg></a>'
-        : '<span class="read-link" aria-disabled="true">Brak źródła</span>') +
+    // Opinions are a visible text button (they used to hide behind a small icon).
+    var opinionsButton = opinions
+      ? '<button class="opinions-btn" type="button" data-action="opinions" data-i="' + i + '" aria-haspopup="dialog">' +
+        '<svg class="icon" aria-hidden="true"><use href="#i-comment"/></svg>Czytaj opinie</button>'
+      : '<span class="opinions-btn opinions-btn--none" title="Dla tego artykułu nie ma opinii społeczności">' +
+        '<svg class="icon" aria-hidden="true"><use href="#i-comment"/></svg>Brak opinii</span>';
+
+    var actions = '<div class="story__actions">' + opinionsButton +
       '<div class="story__icons">' +
       '<button class="icon-btn" type="button" data-action="copy" data-i="' + i + '" aria-label="Kopiuj artykuł" title="Kopiuj"><svg class="icon"><use href="#i-copy"/></svg></button>' +
       '<button class="icon-btn" type="button" data-action="share" data-i="' + i + '" aria-label="Udostępnij artykuł" title="Udostępnij"><svg class="icon"><use href="#i-share"/></svg></button>' +
-      '<button class="icon-btn" type="button" data-action="opinions" data-i="' + i + '"' +
-      (opinions ? ' aria-label="Opinie społeczności" title="Opinie społeczności"' : ' disabled aria-label="Opinie niedostępne" title="Opinie niedostępne"') +
-      '><svg class="icon"><use href="#i-comment"/></svg></button>' +
       "</div></div>";
 
     return '<article class="story' + (isLead ? " story--lead" : "") + '" data-cat="' + cat.id + '" style="animation-delay:' + Math.min(i, 8) * 40 + 'ms">' +
